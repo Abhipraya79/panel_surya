@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "26779214736",
+    "project_id": "panel-surya-iot",
+    "storage_bucket": "panel-surya-iot.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:26779214736:android:d77b7e3e559a842bcec915",
+        "android_client_info": {
+          "package_name": "com.example.panel_surya"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDI8M8SFH8RzGIDIKZGpEBmaWyYFwiquyI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
