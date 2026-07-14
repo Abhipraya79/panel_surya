@@ -10,6 +10,7 @@ import '../../../../core/widgets/app_section_title.dart';
 import '../../../../core/widgets/app_status_chip.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import 'connection_test_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -125,9 +126,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Material(
+      color: AppColors.background,
+      child: SafeArea(
         bottom: false,
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -202,6 +203,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
+            ),
+
+            // ─── Connection Test ──────────────────────────────────────
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+              sliver: SliverToBoxAdapter(child: _buildSettingsTile(
+                icon: LucideIcons.network,
+                label: 'Uji Koneksi (Connection Test)',
+                value: 'Diagnostics',
+                iconColor: AppColors.primary,
+                iconBg: AppColors.primaryContainer,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ConnectionTestScreen(),
+                    ),
+                  );
+                },
+              )),
             ),
 
             // ─── About ────────────────────────────────────────────────

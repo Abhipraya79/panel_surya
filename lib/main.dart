@@ -2,17 +2,29 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'firebase_options.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
-
+import 'core/services/fcm_service.dart';
+import 'features/dashboard/presentation/providers/dashboard_provider.dart';
+import 'features/monitoring/presentation/providers/history_provider.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (defaultTargetPlatform == TargetPlatform.android) {
-    await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    debugPrint("✅ Firebase Initialized Successfully");
+  } catch (e) {
+    debugPrint("❌ Firebase Initialization Error: $e");
   }
 
   runApp(const PanelCareApp());
@@ -27,30 +39,64 @@ class PanelCareApp extends StatefulWidget {
 
 class _PanelCareAppState extends State<PanelCareApp> {
   final FirebaseMessaging messaging = FirebaseMessaging.instance;
+
   StreamSubscription<RemoteMessage>? _foregroundMessageSubscription;
 
   @override
   void initState() {
     super.initState();
 
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      setupFCM();
-      listenForegroundNotifications();
-    }
+    setupFCM();
+    listenForegroundNotifications();
   }
 
   Future<void> setupFCM() async {
-    final settings = await messaging.requestPermission();
-    debugPrint('FCM permission status: ${settings.authorizationStatus}');
+    try {
+      NotificationSettings settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
 
-    final token = await messaging.getToken();
-    debugPrint('FCM Token: $token');
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      debugPrint(
+        "🔔 FCM Permission Status: ${settings.authorizationStatus}",
+      );
+
+      final token = await messaging.getToken();
+
+      if (token != null) {
+        debugPrint("📱 FCM Token:");
+        debugPrint(token);
+      } else {
+        debugPrint("⚠️ FCM Token is null");
+      }
+    } catch (e) {
+      debugPrint("❌ Error setting up FCM: $e");
+    }
   }
 
   void listenForegroundNotifications() {
     _foregroundMessageSubscription =
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Notif masuk: ${message.notification?.title}');
+      debugPrint("========== FOREGROUND NOTIFICATION ==========");
+
+      if (message.notification != null) {
+        debugPrint("Title : ${message.notification!.title}");
+        debugPrint("Body  : ${message.notification!.body}");
+      }
+
+      if (message.data.isNotEmpty) {
+        debugPrint("Data  : ${message.data}");
+      }
+
+      debugPrint("============================================");
     });
   }
 
@@ -62,11 +108,21 @@ class _PanelCareAppState extends State<PanelCareApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Panel Care',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      home: const SplashScreen(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<DashboardProvider>(
+          create: (_) => DashboardProvider()..initialize(),
+        ),
+        ChangeNotifierProvider<HistoryProvider>(
+          create: (_) => HistoryProvider()..loadHistory(),
+        ),
+      ],
+      child: MaterialApp(
+        title: 'Panel Care',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        home: const SplashScreen(),
+      ),
     );
   }
 }

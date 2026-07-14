@@ -8,6 +8,9 @@ import '../features/monitoring/presentation/screens/monitoring_screen.dart';
 import '../features/cooling/presentation/screens/cooling_screen.dart';
 import '../features/control/presentation/screens/controller_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../features/auth/presentation/screens/splash_screen.dart';
+import '../core/state/app_state.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -17,7 +20,7 @@ class MainNavigation extends StatefulWidget {
 }
 
 class _MainNavigationState extends State<MainNavigation>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedIndex = 0;
   late final AnimationController _animController;
 
@@ -40,6 +43,7 @@ class _MainNavigationState extends State<MainNavigation>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
@@ -48,8 +52,33 @@ class _MainNavigationState extends State<MainNavigation>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _animController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (AppState.instance.isBiometricAuthenticating) {
+        AppState.instance.isBiometricAuthenticating = false;
+        return;
+      }
+      _handleBackgroundLogout();
+    }
+  }
+
+  Future<void> _handleBackgroundLogout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (e) {
+      debugPrint('Error signing out on resume: $e');
+    }
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const SplashScreen()),
+      (route) => false,
+    );
   }
 
   void _onItemTapped(int index) {

@@ -8,6 +8,7 @@ import '../../../../core/constants/app_shadows.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_section_title.dart';
 import '../../../../core/widgets/app_status_chip.dart';
+import '../../../../core/state/app_state.dart';
 
 class CoolingScreen extends StatefulWidget {
   const CoolingScreen({super.key});
@@ -17,14 +18,21 @@ class CoolingScreen extends StatefulWidget {
 }
 
 class _CoolingScreenState extends State<CoolingScreen> {
-  bool _peltierOn = true;
-  bool _fanOn = true;
+  late bool _peltierOn;
+  late bool _fanOn;
+
+  @override
+  void initState() {
+    super.initState();
+    _peltierOn = AppState.instance.peltierOn;
+    _fanOn = AppState.instance.fanOn;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Material(
+      color: AppColors.background,
+      child: SafeArea(
         bottom: false,
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -179,7 +187,10 @@ class _CoolingScreenState extends State<CoolingScreen> {
                   ),
                   Switch(
                     value: _peltierOn,
-                    onChanged: (v) => setState(() => _peltierOn = v),
+                    onChanged: (v) => setState(() {
+                      _peltierOn = v;
+                      AppState.instance.peltierOn = v;
+                    }),
                     activeThumbColor: AppColors.primary,
                   ),
                 ],
@@ -239,7 +250,10 @@ class _CoolingScreenState extends State<CoolingScreen> {
                   ),
                   Switch(
                     value: _fanOn,
-                    onChanged: (v) => setState(() => _fanOn = v),
+                    onChanged: (v) => setState(() {
+                      _fanOn = v;
+                      AppState.instance.fanOn = v;
+                    }),
                     activeThumbColor: AppColors.primary,
                   ),
                 ],

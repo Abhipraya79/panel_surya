@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/constants/app_radius.dart';
-import '../../../../core/constants/app_shadows.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_textfield.dart';
 import '../../../../navigation/main_navigation.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../data/services/auth_service.dart';
+import '../../../dashboard/presentation/screens/dashboard_screen.dart';
+import '../../../../core/state/app_state.dart';
 
 /// Redesigned premium Login Screen for SolarCare IoT.
 /// Features a seamlessly blended top hero image that fades directly into the white background.
@@ -23,8 +24,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
   bool _rememberMe = false;
   bool _isLoading = false;
 
@@ -51,8 +52,8 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void dispose() {
     _controller.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
     super.dispose();
   }
 
@@ -71,12 +72,11 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
+      AppState.instance.isBiometricAuthenticating = true;
       final bool didAuthenticate = await _localAuth.authenticate(
         localizedReason: 'Silakan verifikasi identitas Anda untuk masuk ke Panel Care',
-        options: const AuthenticationOptions(
-          biometricOnly: true,
-          stickyAuth: true,
-        ),
+        biometricOnly: true,
+        persistAcrossBackgrounding: true,
       );
 
       if (didAuthenticate) {
@@ -99,8 +99,11 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         );
+      } else {
+        AppState.instance.isBiometricAuthenticating = false;
       }
     } catch (e) {
+      AppState.instance.isBiometricAuthenticating = false;
       debugPrint('Biometric Auth Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -112,38 +115,73 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  Future<void> _handleLogin() async {
-    final email = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+  Future<void> login() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email dan Password tidak boleh kosong.')),
+        const SnackBar(content: Text('Email dan password tidak boleh kosong.')),
       );
       return;
     }
 
     setState(() => _isLoading = true);
-    final error = await AuthService.signIn(email: email, password: password);
-    if (!mounted) return;
-    setState(() => _isLoading = false);
 
-    if (error == null) {
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      print(FirebaseAuth.instance.currentUser?.email);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       Navigator.pushReplacement(
         context,
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const MainNavigation(),
-          transitionDuration: const Duration(milliseconds: 500),
-          transitionsBuilder: (_, animation, __, child) => FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => const MainNavigation()),
       );
-    } else {
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      print(e.code);
+
+      String errorMessage;
+      switch (e.code) {
+        case 'invalid-email':
+          errorMessage = 'Format email yang Anda masukkan salah.';
+          break;
+        case 'user-disabled':
+          errorMessage = 'Akun ini telah dinonaktifkan.';
+          break;
+        case 'user-not-found':
+          errorMessage = 'Akun tidak ditemukan. Silakan daftar terlebih dahulu.';
+          break;
+        case 'wrong-password':
+          errorMessage = 'Password yang Anda masukkan salah.';
+          break;
+        case 'invalid-credential':
+          errorMessage = 'Email atau password yang Anda masukkan salah.';
+          break;
+        case 'network-request-failed':
+          errorMessage = 'Koneksi internet bermasalah. Periksa koneksi Anda.';
+          break;
+        default:
+          errorMessage = e.message ?? 'Terjadi kesalahan saat masuk.';
+          break;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error),
+          content: Text(errorMessage),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan tidak dikenal: $e'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -153,7 +191,6 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isTablet = size.width > 600;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -352,7 +389,7 @@ class _LoginScreenState extends State<LoginScreen>
           AppTextField(
             label: 'Email',
             hint: 'Masukkan email Anda',
-            controller: _usernameController,
+            controller: emailController,
             prefixIcon: LucideIcons.mail,
             keyboardType: TextInputType.emailAddress,
           ),
@@ -362,7 +399,7 @@ class _LoginScreenState extends State<LoginScreen>
           AppTextField(
             label: 'Password',
             hint: 'Masukkan password Anda',
-            controller: _passwordController,
+            controller: passwordController,
             prefixIcon: LucideIcons.lock,
             isPassword: true,
           ),
@@ -416,10 +453,24 @@ class _LoginScreenState extends State<LoginScreen>
           const SizedBox(height: AppSpacing.lg),
 
           // Login Button
-          AppButton.primary(
-            label: 'LOGIN',
-            isLoading: _isLoading,
-            onPressed: _isLoading ? null : _handleLogin,
+          ElevatedButton(
+            onPressed: _isLoading ? null : login,
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text("Login"),
           ),
         ],
       ),

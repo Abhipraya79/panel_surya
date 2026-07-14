@@ -1,13 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_radius.dart';
 import 'login_screen.dart';
-import '../../data/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../navigation/main_navigation.dart';
+import '../../../../core/constants/app_config.dart';
+import '../../../../core/services/network_error_handler.dart';
+import '../../../settings/presentation/screens/connection_test_screen.dart';
 
 /// Redesigned premium Splash Screen for SolarCare IoT.
 /// Integrates assets/images/panel.jpeg seamlessly with a clean,
@@ -29,9 +34,19 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _scaleAnimation;
   late Animation<double> _loadingProgress;
 
+  // Connection check state variables
+  bool _isCheckingConnection = true;
+  bool _connectionSuccess = false;
+  String _statusText = 'Menghubungkan ke server...';
+  String? _connectionError;
+  bool _showDiagnosticsButton = false;
+
   @override
   void initState() {
     super.initState();
+
+    // Force logout on startup (cold start / restart)
+    FirebaseAuth.instance.signOut();
 
     // Fade animation (duration 400ms)
     _fadeController = AnimationController(
@@ -64,32 +79,77 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Trigger animations sequentially
     _fadeController.forward().then((_) => _scaleController.forward());
-    
-    Future.delayed(const Duration(milliseconds: 200), () {
-      if (mounted) _loadingController.forward();
+
+    _checkBackendConnection();
+  }
+
+  Future<void> _checkBackendConnection() async {
+    if (!mounted) return;
+    setState(() {
+      _isCheckingConnection = true;
+      _connectionSuccess = false;
+      _statusText = 'Memverifikasi koneksi backend...';
+      _connectionError = null;
+      _showDiagnosticsButton = false;
     });
 
-    // Navigate to next screen after progress finishes
-    Future.delayed(const Duration(milliseconds: 2800), _navigateToNextScreen);
+    _loadingController.reset();
+    _loadingController.forward(from: 0.0);
+
+    final client = http.Client();
+    final uri = Uri.parse('${AppConfig.baseUrl}/health');
+
+    try {
+      final response = await client.get(uri).timeout(
+            const Duration(seconds: 5),
+          );
+
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        setState(() {
+          _isCheckingConnection = false;
+          _connectionSuccess = true;
+          _statusText = 'Backend Connected';
+        });
+
+        // Let the progress finish and then navigate
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (mounted) {
+          _navigateToNextScreen();
+        }
+      } else {
+        throw Exception('HTTP Status ${response.statusCode}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _loadingController.stop(); // Stop progress indicator
+      setState(() {
+        _isCheckingConnection = false;
+        _connectionSuccess = false;
+        _statusText = 'Koneksi Gagal ke Server';
+        _connectionError = NetworkErrorHandler.getFriendlyMessage(e);
+        _showDiagnosticsButton = true;
+      });
+    } finally {
+      client.close();
+    }
   }
 
   void _navigateToNextScreen() {
     if (!mounted) return;
     
-    // Check if user session is already active
-    final user = AuthService.currentUser;
-    final targetScreen = user != null ? const MainNavigation() : const LoginScreen();
-
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => targetScreen,
-        transitionDuration: const Duration(milliseconds: 500),
-        transitionsBuilder: (_, animation, __, child) => FadeTransition(
-          opacity: animation,
-          child: child,
-        ),
-      ),
-    );
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainNavigation()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
   }
 
   @override
@@ -208,34 +268,8 @@ class _SplashScreenState extends State<SplashScreen>
 
                   // ─── Bottom Loading and Progress Indicator ───────────────
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: Column(
-                      children: [
-                        AnimatedBuilder(
-                          animation: _loadingProgress,
-                          builder: (_, __) => ClipRRect(
-                            borderRadius: BorderRadius.circular(100),
-                            child: LinearProgressIndicator(
-                              value: _loadingProgress.value,
-                              minHeight: 4,
-                              backgroundColor: const Color(0xFFFCE4EC),
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'Loading system data...',
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF6B7280),
-                          ),
-                        ),
-                      ],
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                    child: _buildConnectionWidget(),
                   ),
 
                   const SizedBox(height: AppSpacing.lg),
@@ -256,6 +290,119 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildConnectionWidget() {
+    if (_connectionError != null) {
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.dangerLight.withOpacity(0.4),
+          borderRadius: AppRadius.lg,
+          border: Border.all(color: AppColors.danger.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.wifiOff, color: AppColors.danger, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _statusText,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _connectionError!,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppColors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: _checkBackendConnection,
+                    icon: const Icon(LucideIcons.refreshCw, size: 14),
+                    label: Text(
+                      'Coba Lagi',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ConnectionTestScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(LucideIcons.network, size: 14),
+                    label: Text(
+                      'Uji Koneksi',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: AppRadius.md),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        AnimatedBuilder(
+          animation: _loadingProgress,
+          builder: (_, __) => ClipRRect(
+            borderRadius: BorderRadius.circular(100),
+            child: LinearProgressIndicator(
+              value: _loadingProgress.value,
+              minHeight: 4,
+              backgroundColor: const Color(0xFFFCE4EC),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _connectionSuccess ? AppColors.success : AppColors.primary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          _statusText,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: _connectionSuccess ? AppColors.success : const Color(0xFF6B7280),
+          ),
+        ),
+      ],
     );
   }
 }

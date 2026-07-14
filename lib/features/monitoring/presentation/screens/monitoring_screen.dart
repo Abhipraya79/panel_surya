@@ -1,115 +1,203 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:fl_chart/fl_chart.dart';
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/constants/app_shadows.dart';
+import '../providers/history_provider.dart';
+import '../../data/models/telemetry_history_model.dart';
+import '../../../settings/presentation/screens/connection_test_screen.dart';
 
-class MonitoringScreen extends StatefulWidget {
+class MonitoringScreen extends StatelessWidget {
   const MonitoringScreen({super.key});
 
   @override
-  State<MonitoringScreen> createState() => _MonitoringScreenState();
-}
-
-class _MonitoringScreenState extends State<MonitoringScreen> {
-  int _selectedTime = 0; // 0=Realtime 1=1Hari 2=7Hari 3=30Hari
-
-  final _timeFilters = ['Real-time', '1 Hari', '7 Hari', '30 Hari'];
-
-  final _charts = [
-    _ChartData(
-        title: 'Suhu Panel (°C)',
-        value: '41.8 °C',
-        color: AppColors.tempPanel,
-        dataPoints: [35, 38, 41, 43, 41, 40, 41, 42, 41, 41]),
-    _ChartData(
-        title: 'Suhu Air (°C)',
-        value: '24.6 °C',
-        color: AppColors.tempWater,
-        dataPoints: [22, 23, 24, 25, 24, 25, 24, 24, 25, 24]),
-    _ChartData(
-        title: 'Debu (μg/m³)',
-        value: '128 μg/m³',
-        color: AppColors.dustColor,
-        dataPoints: [80, 100, 120, 150, 130, 128, 125, 130, 128, 130]),
-    _ChartData(
-        title: 'Tegangan (V)',
-        value: '18.72 V',
-        color: AppColors.voltageColor,
-        dataPoints: [17, 18, 18, 19, 18, 18, 18, 19, 18, 18]),
-    _ChartData(
-        title: 'Arus (A)',
-        value: '4.25 A',
-        color: AppColors.currentColor,
-        dataPoints: [3, 4, 4, 5, 4, 4, 4, 4, 4, 4]),
-    _ChartData(
-        title: 'Daya (W)',
-        value: '79.8 W',
-        color: AppColors.powerColor,
-        dataPoints: [55, 70, 75, 90, 80, 79, 78, 80, 79, 80]),
-  ];
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Material(
+      color: AppColors.background,
+      child: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            // ─── Header + Time Filter ─────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
-              child: Column(
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Monitoring',
-                              style: GoogleFonts.poppins(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              'Grafik sensor real-time',
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Monitoring',
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      ),
-                      Icon(LucideIcons.calendar,
-                          color: AppColors.textSecondary, size: 20),
-                    ],
+                        Text(
+                          'Grafik sensor historis',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  _buildTimeFilter(),
                 ],
               ),
             ),
 
-            // ─── Chart Cards ─────────────────────────────────────────
+            // Limit Selector
+            const _LimitSelector(),
+
+            // Content
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.md, AppSpacing.md, 120),
-                physics: const BouncingScrollPhysics(),
-                itemCount: _charts.length,
-                itemBuilder: (_, i) => _ChartCard(
-                  data: _charts[i],
-                  timeFilter: _timeFilters[_selectedTime],
-                ),
+              child: Consumer<HistoryProvider>(
+                builder: (context, provider, child) {
+                  if (provider.isLoading && provider.records.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (provider.hasError && provider.records.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(LucideIcons.wifiOff,
+                                size: 48, color: Colors.grey),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text(
+                              provider.errorMessage ?? 'Gagal memuat data history',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                  color: AppColors.textSecondary, fontSize: 13),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: AppRadius.md),
+                                  ),
+                                  onPressed: () => provider.loadHistory(),
+                                  icon: const Icon(LucideIcons.refreshCw, size: 14),
+                                  label: Text(
+                                    'Coba Lagi',
+                                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.primary,
+                                    side: const BorderSide(color: AppColors.primary),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: AppRadius.md),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const ConnectionTestScreen(),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(LucideIcons.network, size: 14),
+                                  label: Text(
+                                    'Uji Koneksi',
+                                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            )
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (provider.records.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(LucideIcons.database,
+                              size: 48, color: Colors.grey),
+                          const SizedBox(height: AppSpacing.sm),
+                          Text('Belum ada data history',
+                              style: GoogleFonts.poppins(
+                                  color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return RefreshIndicator(
+                    onRefresh: () => provider.loadHistory(),
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.md, AppSpacing.sm, AppSpacing.md, 120),
+                      physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics()),
+                      children: [
+                        // Statistics Card
+                        const _StatisticsCard(),
+                        const SizedBox(height: AppSpacing.md),
+
+                        // Charts
+                        _ChartCard(
+                          title: 'Suhu Panel (°C)',
+                          color: AppColors.tempPanel,
+                          dataExtractor: (model) => model.temperature,
+                          unit: '°C',
+                        ),
+                        _ChartCard(
+                          title: 'Kelembaban (%)',
+                          color: AppColors.tempWater,
+                          dataExtractor: (model) => model.humidity,
+                          unit: '%',
+                        ),
+                        _ChartCard(
+                          title: 'Tegangan (V)',
+                          color: AppColors.voltageColor,
+                          dataExtractor: (model) => model.voltage,
+                          unit: 'V',
+                        ),
+                        _ChartCard(
+                          title: 'Arus (A)',
+                          color: AppColors.currentColor,
+                          dataExtractor: (model) => model.current,
+                          unit: 'A',
+                        ),
+                        _ChartCard(
+                          title: 'Daya (W)',
+                          color: AppColors.powerColor,
+                          dataExtractor: (model) => model.power,
+                          unit: 'W',
+                        ),
+                        _ChartCard(
+                          title: 'Debu (μg/m³)',
+                          color: AppColors.dustColor,
+                          dataExtractor: (model) => model.dust,
+                          unit: 'μg/m³',
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -117,128 +205,140 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
       ),
     );
   }
+}
 
-  Widget _buildTimeFilter() {
-    return Container(
-      height: 40,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant.withOpacity(0.5),
-        borderRadius: AppRadius.pill,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: List.generate(_timeFilters.length, (i) {
-          final selected = _selectedTime == i;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedTime = i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.primary : Colors.transparent,
-                  borderRadius: AppRadius.pill,
-                ),
-                child: Center(
-                  child: Text(
-                    _timeFilters[i],
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.w400,
-                      color: selected
-                          ? Colors.white
-                          : AppColors.textSecondary,
-                    ),
+class _LimitSelector extends StatelessWidget {
+  const _LimitSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<HistoryProvider>(
+      builder: (context, provider, child) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [20, 50, 100, 200].map((limit) {
+              final isSelected = provider.selectedLimit == limit;
+              return Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.sm),
+                child: ChoiceChip(
+                  label: Text('$limit Data'),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      provider.setLimit(limit);
+                    }
+                  },
+                  labelStyle: GoogleFonts.poppins(
+                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
+                  selectedColor: AppColors.primary,
+                  backgroundColor: AppColors.card,
+                  side: BorderSide(
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.border.withValues(alpha: 0.5)),
                 ),
-              ),
-            ),
-          );
-        }),
-      ),
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 }
 
-// ─── Chart Card ──────────────────────────────────────────────────────────────
-
-class _ChartCard extends StatelessWidget {
-  final _ChartData data;
-  final String timeFilter;
-
-  const _ChartCard({required this.data, required this.timeFilter});
+class _StatisticsCard extends StatelessWidget {
+  const _StatisticsCard();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: AppRadius.lg,
-        boxShadow: AppShadows.card,
-        border: Border.all(color: AppColors.border.withOpacity(0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Consumer<HistoryProvider>(
+      builder: (context, provider, child) {
+        return Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: AppRadius.lg,
+            boxShadow: AppShadows.card,
+            border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  data.title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
+              Text(
+                'Ringkasan Data',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: data.color.withOpacity(0.12),
-                  borderRadius: AppRadius.pill,
-                ),
-                child: Text(
-                  data.value,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: data.color,
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _StatItem(label: 'Avg Temp', value: '${provider.avgTemperature.toStringAsFixed(1)} °C'),
+                        _StatItem(label: 'Max Temp', value: '${provider.maxTemperature.toStringAsFixed(1)} °C'),
+                        _StatItem(label: 'Min Temp', value: '${provider.minTemperature.toStringAsFixed(1)} °C'),
+                        _StatItem(label: 'Avg Hum', value: '${provider.avgHumidity.toStringAsFixed(1)} %'),
+                      ],
+                    ),
                   ),
-                ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _StatItem(label: 'Avg Volt', value: '${provider.avgVoltage.toStringAsFixed(1)} V'),
+                        _StatItem(label: 'Avg Curr', value: '${provider.avgCurrent.toStringAsFixed(2)} A'),
+                        _StatItem(label: 'Avg Pwr', value: '${provider.avgPower.toStringAsFixed(1)} W'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+        );
+      },
+    );
+  }
+}
 
-          // ─── Mini Line Chart (canvas-painted) ──────────────────────
-          SizedBox(
-            height: 80,
-            child: CustomPaint(
-              size: const Size(double.infinity, 80),
-              painter: _MiniChartPainter(
-                data: data.dataPoints,
-                color: data.color,
-              ),
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _StatItem({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: AppColors.textSecondary,
             ),
           ),
-
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(
-              5,
-              (i) => Text(
-                '${9 + i}:00',
-                style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  color: AppColors.textHint,
-                ),
-              ),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -247,98 +347,202 @@ class _ChartCard extends StatelessWidget {
   }
 }
 
-// ─── Custom Mini Chart Painter ────────────────────────────────────────────────
-
-class _MiniChartPainter extends CustomPainter {
-  final List<int> data;
+class _ChartCard extends StatelessWidget {
+  final String title;
   final Color color;
+  final double Function(TelemetryHistoryModel) dataExtractor;
+  final String unit;
 
-  const _MiniChartPainter({required this.data, required this.color});
+  const _ChartCard({
+    required this.title,
+    required this.color,
+    required this.dataExtractor,
+    required this.unit,
+  });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (data.isEmpty) return;
+  Widget build(BuildContext context) {
+    return Consumer<HistoryProvider>(
+      builder: (context, provider, child) {
+        final records = provider.records;
+        if (records.isEmpty) return const SizedBox.shrink();
 
-    final minVal = data.reduce((a, b) => a < b ? a : b).toDouble();
-    final maxVal = data.reduce((a, b) => a > b ? a : b).toDouble();
-    final range = (maxVal - minVal).clamp(1.0, double.infinity);
+        final latestValue = dataExtractor(records.last);
+        
+        // Find min and max for Y axis
+        double minY = double.infinity;
+        double maxY = double.negativeInfinity;
+        for (var r in records) {
+          final val = dataExtractor(r);
+          if (val < minY) minY = val;
+          if (val > maxY) maxY = val;
+        }
 
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color.withOpacity(0.25), color.withOpacity(0.0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+        // Add some padding to Y axis
+        final yPadding = (maxY - minY) * 0.1;
+        minY = minY - yPadding;
+        maxY = maxY + yPadding;
+        if (minY == maxY) {
+          minY -= 1;
+          maxY += 1;
+        }
 
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+        // Generate FlSpot data
+        final spots = <FlSpot>[];
+        for (int i = 0; i < records.length; i++) {
+          spots.add(FlSpot(i.toDouble(), dataExtractor(records[i])));
+        }
 
-    final points = <Offset>[];
-    for (int i = 0; i < data.length; i++) {
-      final x = i / (data.length - 1) * size.width;
-      final y = size.height -
-          ((data[i].toDouble() - minVal) / range) * size.height * 0.85 -
-          size.height * 0.05;
-      points.add(Offset(x, y));
-    }
+        return Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: AppRadius.lg,
+            boxShadow: AppShadows.card,
+            border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Chart Header
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: AppRadius.pill,
+                    ),
+                    child: Text(
+                      '${latestValue.toStringAsFixed(1)} $unit',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
-    // Fill path
-    final fillPath = Path();
-    fillPath.moveTo(points.first.dx, size.height);
-    for (final p in points) {
-      fillPath.lineTo(p.dx, p.dy);
-    }
-    fillPath.lineTo(points.last.dx, size.height);
-    fillPath.close();
-    canvas.drawPath(fillPath, fillPaint);
-
-    // Smooth line path
-    final linePath = Path();
-    linePath.moveTo(points.first.dx, points.first.dy);
-    for (int i = 1; i < points.length; i++) {
-      final cp1 = Offset(
-          (points[i - 1].dx + points[i].dx) / 2, points[i - 1].dy);
-      final cp2 = Offset(
-          (points[i - 1].dx + points[i].dx) / 2, points[i].dy);
-      linePath.cubicTo(
-          cp1.dx, cp1.dy, cp2.dx, cp2.dy, points[i].dx, points[i].dy);
-    }
-    canvas.drawPath(linePath, linePaint);
-
-    // Last point dot
-    canvas.drawCircle(
-      points.last,
-      4,
-      Paint()..color = color,
-    );
-    canvas.drawCircle(
-      points.last,
-      2,
-      Paint()..color = Colors.white,
+              // Chart Body
+              SizedBox(
+                height: 150,
+                child: LineChart(
+                  LineChartData(
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      horizontalInterval: (maxY - minY) / 3,
+                      getDrawingHorizontalLine: (value) {
+                        return FlLine(
+                          color: AppColors.border.withValues(alpha: 0.3),
+                          strokeWidth: 1,
+                          dashArray: [5, 5],
+                        );
+                      },
+                    ),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 30,
+                          interval: (records.length > 5) ? (records.length / 5).floorToDouble() : 1,
+                          getTitlesWidget: (value, meta) {
+                            final index = value.toInt();
+                            if (index < 0 || index >= records.length) {
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                records[index].timeLabel,
+                                style: GoogleFonts.poppins(
+                                  color: AppColors.textHint,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          interval: (maxY - minY) / 3,
+                          reservedSize: 40,
+                          getTitlesWidget: (value, meta) {
+                            return Text(
+                              value.toStringAsFixed(0),
+                              style: GoogleFonts.poppins(
+                                color: AppColors.textHint,
+                                fontSize: 10,
+                              ),
+                              textAlign: TextAlign.right,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    minX: 0,
+                    maxX: (records.length - 1).toDouble(),
+                    minY: minY,
+                    maxY: maxY,
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: spots,
+                        isCurved: true,
+                        color: color,
+                        barWidth: 2,
+                        isStrokeCapRound: true,
+                        dotData: const FlDotData(show: false),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          color: color.withValues(alpha: 0.15),
+                        ),
+                      ),
+                    ],
+                    lineTouchData: LineTouchData(
+                      touchTooltipData: LineTouchTooltipData(
+                        getTooltipColor: (LineBarSpot spot) => AppColors.primary,
+                        getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                          return touchedSpots.map((spot) {
+                            final record = records[spot.x.toInt()];
+                            return LineTooltipItem(
+                              '${record.timeLabel}\n${spot.y.toStringAsFixed(1)} $unit',
+                              GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            );
+                          }).toList();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
-
-  @override
-  bool shouldRepaint(_MiniChartPainter oldDelegate) =>
-      oldDelegate.data != data || oldDelegate.color != color;
-}
-
-// ─── Data ────────────────────────────────────────────────────────────────────
-
-class _ChartData {
-  final String title;
-  final String value;
-  final Color color;
-  final List<int> dataPoints;
-
-  const _ChartData({
-    required this.title,
-    required this.value,
-    required this.color,
-    required this.dataPoints,
-  });
 }

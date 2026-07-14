@@ -8,6 +8,7 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_section_title.dart';
 import '../../../../core/widgets/app_status_chip.dart';
 import '../widgets/manual_play_button.dart';
+import '../../../../core/state/app_state.dart';
 
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
@@ -17,16 +18,29 @@ class ControllerScreen extends StatefulWidget {
 }
 
 class _ControllerScreenState extends State<ControllerScreen> {
-  // ─── Existing state ─────────────────────────────────────────────────────────
-  bool _isManualMode = true;
-  bool _wiperOn = false;
-  bool _pumpOn = false;
-  bool _schedule07 = true;
-  bool _schedule18 = true;
-  bool _isCleaning = false;
+  late bool _isManualMode;
+  late bool _wiperOn;
+  late bool _pumpOn;
+  late bool _schedule07;
+  late bool _schedule18;
+  late bool _isCleaning;
+
+  @override
+  void initState() {
+    super.initState();
+    _isManualMode = AppState.instance.isManualMode;
+    _wiperOn = AppState.instance.wiperOn;
+    _pumpOn = AppState.instance.pumpOn;
+    _schedule07 = AppState.instance.schedule07;
+    _schedule18 = AppState.instance.schedule18;
+    _isCleaning = AppState.instance.isCleaning;
+  }
 
   void _startCleaning() {
-    setState(() => _isCleaning = true);
+    setState(() {
+      _isCleaning = true;
+      AppState.instance.isCleaning = true;
+    });
     // Existing logic: show SnackBar
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Pembersihan Manual Dimulai...')),
@@ -34,7 +48,10 @@ class _ControllerScreenState extends State<ControllerScreen> {
   }
 
   void _stopCleaning() {
-    setState(() => _isCleaning = false);
+    setState(() {
+      _isCleaning = false;
+      AppState.instance.isCleaning = false;
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Pembersihan Dihentikan')),
     );
@@ -42,9 +59,9 @@ class _ControllerScreenState extends State<ControllerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Material(
+      color: AppColors.background,
+      child: SafeArea(
         bottom: false,
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -124,13 +141,19 @@ class _ControllerScreenState extends State<ControllerScreen> {
               _ModeChip(
                 label: 'Manual',
                 selected: _isManualMode,
-                onTap: () => setState(() => _isManualMode = true),
+                onTap: () => setState(() {
+                  _isManualMode = true;
+                  AppState.instance.isManualMode = true;
+                }),
               ),
               const SizedBox(width: AppSpacing.sm),
               _ModeChip(
                 label: 'Auto (Terjadwal RTC)',
                 selected: !_isManualMode,
-                onTap: () => setState(() => _isManualMode = false),
+                onTap: () => setState(() {
+                  _isManualMode = false;
+                  AppState.instance.isManualMode = false;
+                }),
               ),
             ],
           ),
@@ -181,7 +204,10 @@ class _ControllerScreenState extends State<ControllerScreen> {
             icon: LucideIcons.brush,
             label: 'Wiper (Motor Power Window)',
             value: _wiperOn,
-            onChanged: (v) => setState(() => _wiperOn = v),
+            onChanged: (v) => setState(() {
+              _wiperOn = v;
+              AppState.instance.wiperOn = v;
+            }),
             iconColor: AppColors.tempWater,
           ),
           const Divider(height: 16),
@@ -189,7 +215,10 @@ class _ControllerScreenState extends State<ControllerScreen> {
             icon: LucideIcons.droplets,
             label: 'Pompa Pembersih (Water Pump)',
             value: _pumpOn,
-            onChanged: (v) => setState(() => _pumpOn = v),
+            onChanged: (v) => setState(() {
+              _pumpOn = v;
+              AppState.instance.pumpOn = v;
+            }),
             iconColor: AppColors.primary,
           ),
         ],
@@ -207,13 +236,19 @@ class _ControllerScreenState extends State<ControllerScreen> {
           _ScheduleRow(
             time: '07:00',
             value: _schedule07,
-            onChanged: (v) => setState(() => _schedule07 = v),
+            onChanged: (v) => setState(() {
+              _schedule07 = v;
+              AppState.instance.schedule07 = v;
+            }),
           ),
           const Divider(height: 16),
           _ScheduleRow(
             time: '18:00',
             value: _schedule18,
-            onChanged: (v) => setState(() => _schedule18 = v),
+            onChanged: (v) => setState(() {
+              _schedule18 = v;
+              AppState.instance.schedule18 = v;
+            }),
           ),
         ],
       ),

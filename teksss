@@ -1,0 +1,9 @@
+Tolong perbaiki error build Gradle berikut dengan menaikkan (upgrade) versi Android Gradle Plugin (AGP) proyek saya ke versi 8.9.1 atau yang lebih baru agar kompatibel dengan androidx.core 1.18.0:
+
+Error:
+- Dependency 'androidx.core:core-ktx:1.18.0' membutuhkan AGP 8.9.1 atau lebih tinggi (saat ini menggunakan 8.7.0).
+
+Instruksi untuk Anda:
+1. Upgrade versi Android Gradle Plugin (AGP) menjadi 8.9.1 di build.gradle tingkat root atau settings.gradle (tergantung di mana plugin didefinisikan).
+2. Periksa gradle/wrapper/gradle-wrapper.properties dan naikkan versi Gradle (misalnya ke 8.11 atau yang kompatibel dengan AGP 8.9.1) jika versi Gradle saat ini terlalu rendah.
+3. Jalankan pembersihan cache gradle jika diperlukan setelah perubahan.

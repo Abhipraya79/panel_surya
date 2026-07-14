@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_radius.dart';
@@ -10,6 +11,9 @@ import '../../../../core/widgets/app_status_chip.dart';
 import '../../../../core/widgets/app_section_title.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../history/presentation/screens/notification_page.dart';
+import '../providers/dashboard_provider.dart';
+import '../../data/models/dashboard_model.dart';
+import '../../../settings/presentation/screens/connection_test_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -47,64 +51,164 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // ─── Header ──────────────────────────────────────────────────
-            SliverToBoxAdapter(child: _buildHeader(context)),
-
-            // ─── Hero System Card ─────────────────────────────────────────
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
-              sliver: SliverToBoxAdapter(child: _buildHeroCard(context)),
+    return Consumer<DashboardProvider>(
+      builder: (context, provider, _) {
+        // ── Loading State ────────────────────────────────────────────────────
+        if (provider.isLoading) {
+          return Material(
+            color: AppColors.background,
+            child: const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
             ),
+          );
+        }
 
-            // ─── Monitoring Metrics Grid ──────────────────────────────────
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.lg, AppSpacing.md, 0),
-              sliver: SliverToBoxAdapter(
-                child: AppSectionTitle(
-                  title: 'Sensor Monitoring',
-                  subtitle: 'Real-time sensor readings',
+        // ── Error State (no data at all) ─────────────────────────────────────
+        if (provider.hasError && provider.data == null) {
+          return Material(
+            color: AppColors.background,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.wifiOff,
+                        size: 48, color: AppColors.textHint),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'Tidak dapat terhubung ke backend',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      provider.errorMessage ?? 'Pastikan backend berjalan dan periksa AppConfig.baseUrl',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: AppRadius.md),
+                          ),
+                          onPressed: () => provider.initialize(),
+                          icon: const Icon(LucideIcons.refreshCw, size: 16),
+                          label: Text(
+                            'Coba Lagi',
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: AppRadius.md),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ConnectionTestScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(LucideIcons.network, size: 16),
+                          label: Text(
+                            'Uji Koneksi',
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
-              sliver: SliverToBoxAdapter(child: _buildMetricsGrid()),
-            ),
+          );
+        }
 
-            // ─── Actuator Status ─────────────────────────────────────────
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.lg, AppSpacing.md, 0),
-              sliver: SliverToBoxAdapter(
-                child: AppSectionTitle(
-                  title: 'Status Aktuator',
-                  subtitle: 'Device control status',
+        // ── Normal / Data State ──────────────────────────────────────────────
+        final data = provider.data!;
+
+        return Material(
+          color: AppColors.background,
+          child: SafeArea(
+            bottom: false,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // ─── Header ────────────────────────────────────────────────
+                SliverToBoxAdapter(child: _buildHeader(context, provider)),
+
+                // ─── Hero System Card ───────────────────────────────────────
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+                  sliver: SliverToBoxAdapter(
+                      child: _buildHeroCard(context, data)),
                 ),
-              ),
+
+                // ─── Monitoring Metrics Grid ────────────────────────────────
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, AppSpacing.lg, AppSpacing.md, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: AppSectionTitle(
+                      title: 'Sensor Monitoring',
+                      subtitle: 'Real-time sensor readings',
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+                  sliver:
+                      SliverToBoxAdapter(child: _buildMetricsGrid(data)),
+                ),
+
+                // ─── Actuator Status ────────────────────────────────────────
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, AppSpacing.lg, AppSpacing.md, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: AppSectionTitle(
+                      title: 'Status Aktuator',
+                      subtitle: 'Device control status',
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, AppSpacing.sm, AppSpacing.md, 120),
+                  sliver:
+                      SliverToBoxAdapter(child: _buildActuatorRow(data)),
+                ),
+              ],
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.sm, AppSpacing.md, 120),
-              sliver: SliverToBoxAdapter(child: _buildActuatorRow()),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   // ─── Header ─────────────────────────────────────────────────────────────────
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, DashboardProvider provider) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
@@ -115,13 +219,6 @@ class DashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Selamat Datang 👋',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
                 Text(
                   'Panel Care',
                   style: GoogleFonts.poppins(
@@ -134,6 +231,9 @@ class DashboardScreen extends StatelessWidget {
               ],
             ),
           ),
+          // ─── Realtime Connection Status Indicator ──────────────────────
+          _ConnectionStatusChip(isConnected: provider.isSocketConnected),
+          const SizedBox(width: AppSpacing.sm),
           // Notification + Logout icon
           _HeaderIconButton(
             icon: LucideIcons.bell,
@@ -156,8 +256,21 @@ class DashboardScreen extends StatelessWidget {
   }
 
   // ─── Hero System Card ────────────────────────────────────────────────────────
-  Widget _buildHeroCard(BuildContext context) {
+  Widget _buildHeroCard(BuildContext context, DashboardModel data) {
     final w = MediaQuery.of(context).size.width - AppSpacing.md * 2;
+
+    // Format lastUpdate time
+    String formattedTime = '--:--:--';
+    if (data.lastUpdate.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(data.lastUpdate).toLocal();
+        formattedTime =
+            '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
+      } catch (_) {
+        formattedTime = data.lastUpdate;
+      }
+    }
+
     return Container(
       width: w,
       height: 180,
@@ -201,9 +314,12 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const AppStatusChip(
-                      label: '● Online',
-                      variant: AppChipVariant.success,
+                    // Dynamic device status chip
+                    AppStatusChip(
+                      label: data.isOnline ? '● Online' : '● Offline',
+                      variant: data.isOnline
+                          ? AppChipVariant.success
+                          : AppChipVariant.danger,
                     ),
                     const Spacer(),
                     Column(
@@ -217,7 +333,7 @@ class DashboardScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '09:41:30',
+                          formattedTime,
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -237,7 +353,7 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Sistem Aktif',
+                  data.isOnline ? 'Sistem Aktif' : 'Sistem Offline',
                   style: GoogleFonts.poppins(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
@@ -247,7 +363,9 @@ class DashboardScreen extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  'Semua sensor berjalan normal',
+                  data.isOnline
+                      ? 'Semua sensor berjalan normal'
+                      : 'Menunggu koneksi perangkat...',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: Colors.white.withOpacity(0.75),
@@ -262,44 +380,44 @@ class DashboardScreen extends StatelessWidget {
   }
 
   // ─── 2×3 Metrics Grid ────────────────────────────────────────────────────────
-  Widget _buildMetricsGrid() {
+  Widget _buildMetricsGrid(DashboardModel data) {
     final metrics = [
       _MetricData(
         title: 'Suhu Panel',
-        value: '41.8',
+        value: data.temperature.toStringAsFixed(1),
         unit: '°C',
         icon: LucideIcons.thermometer,
         iconColor: AppColors.tempPanel,
         iconBg: AppColors.tempPanel.withOpacity(0.12),
-        status: 'Optimal',
-        statusVariant: AppChipVariant.success,
+        status: _tempStatus(data.temperature),
+        statusVariant: _tempVariant(data.temperature),
         trend: 'up',
       ),
       _MetricData(
-        title: 'Suhu Air',
-        value: '24.6',
-        unit: '°C',
+        title: 'Kelembaban',
+        value: data.humidity.toStringAsFixed(0),
+        unit: '%',
         icon: LucideIcons.droplet,
         iconColor: AppColors.tempWater,
         iconBg: AppColors.tempWater.withOpacity(0.12),
-        status: 'Dingin',
-        statusVariant: AppChipVariant.info,
+        status: _humidityStatus(data.humidity),
+        statusVariant: _humidityVariant(data.humidity),
         trend: 'flat',
       ),
       _MetricData(
         title: 'Debu',
-        value: '128',
+        value: data.dust.toStringAsFixed(0),
         unit: 'μg/m³',
         icon: LucideIcons.wind,
         iconColor: AppColors.dustColor,
         iconBg: AppColors.dustColor.withOpacity(0.12),
-        status: 'Sedang',
-        statusVariant: AppChipVariant.warning,
+        status: _dustStatus(data.dust),
+        statusVariant: _dustVariant(data.dust),
         trend: 'up',
       ),
       _MetricData(
         title: 'Tegangan',
-        value: '18.72',
+        value: data.voltage.toStringAsFixed(2),
         unit: 'V',
         icon: LucideIcons.zap,
         iconColor: AppColors.voltageColor,
@@ -310,7 +428,7 @@ class DashboardScreen extends StatelessWidget {
       ),
       _MetricData(
         title: 'Arus',
-        value: '4.25',
+        value: data.current.toStringAsFixed(2),
         unit: 'A',
         icon: LucideIcons.activity,
         iconColor: AppColors.currentColor,
@@ -321,7 +439,7 @@ class DashboardScreen extends StatelessWidget {
       ),
       _MetricData(
         title: 'Daya',
-        value: '79.8',
+        value: data.power.toStringAsFixed(1),
         unit: 'W',
         icon: LucideIcons.power,
         iconColor: AppColors.powerColor,
@@ -360,16 +478,26 @@ class DashboardScreen extends StatelessWidget {
   }
 
   // ─── Actuator Status Row ──────────────────────────────────────────────────────
-  Widget _buildActuatorRow() {
+  Widget _buildActuatorRow(DashboardModel data) {
     final actuators = [
       _ActuatorData('Peltier', LucideIcons.snowflake, true,
           AppColors.tempWater, AppChipVariant.success),
       _ActuatorData('Fan', LucideIcons.wind, true,
           AppColors.info, AppChipVariant.success),
-      _ActuatorData('Pompa Pendingin', LucideIcons.droplets, true,
-          AppColors.tempWater, AppChipVariant.success),
-      _ActuatorData('Pompa Pembersih', LucideIcons.brush, false,
-          AppColors.textSecondary, AppChipVariant.neutral),
+      _ActuatorData(
+        'Pompa Pembersih',
+        LucideIcons.droplets,
+        data.pumpStatus,
+        data.pumpStatus ? AppColors.tempWater : AppColors.textSecondary,
+        data.pumpStatus ? AppChipVariant.success : AppChipVariant.neutral,
+      ),
+      _ActuatorData(
+        'Wiper',
+        LucideIcons.brush,
+        data.wiperStatus,
+        data.wiperStatus ? AppColors.info : AppColors.textSecondary,
+        data.wiperStatus ? AppChipVariant.success : AppChipVariant.neutral,
+      ),
     ];
 
     return GridView.builder(
@@ -383,6 +511,91 @@ class DashboardScreen extends StatelessWidget {
       ),
       itemCount: actuators.length,
       itemBuilder: (_, i) => _ActuatorCard(data: actuators[i]),
+    );
+  }
+
+  // ─── Status label helpers ─────────────────────────────────────────────────────
+
+  String _tempStatus(double t) {
+    if (t < 30) return 'Dingin';
+    if (t < 45) return 'Optimal';
+    return 'Panas';
+  }
+
+  AppChipVariant _tempVariant(double t) {
+    if (t < 30) return AppChipVariant.info;
+    if (t < 45) return AppChipVariant.success;
+    return AppChipVariant.danger;
+  }
+
+  String _humidityStatus(double h) {
+    if (h < 40) return 'Rendah';
+    if (h < 80) return 'Normal';
+    return 'Tinggi';
+  }
+
+  AppChipVariant _humidityVariant(double h) {
+    if (h < 40) return AppChipVariant.warning;
+    if (h < 80) return AppChipVariant.success;
+    return AppChipVariant.info;
+  }
+
+  String _dustStatus(double d) {
+    if (d < 50) return 'Bersih';
+    if (d < 100) return 'Sedang';
+    return 'Kotor';
+  }
+
+  AppChipVariant _dustVariant(double d) {
+    if (d < 50) return AppChipVariant.success;
+    if (d < 100) return AppChipVariant.warning;
+    return AppChipVariant.danger;
+  }
+}
+
+// ─── Connection Status Chip ───────────────────────────────────────────────────
+
+class _ConnectionStatusChip extends StatelessWidget {
+  final bool isConnected;
+  const _ConnectionStatusChip({required this.isConnected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isConnected
+            ? AppColors.success.withOpacity(0.12)
+            : AppColors.danger.withOpacity(0.12),
+        borderRadius: AppRadius.pill,
+        border: Border.all(
+          color: isConnected
+              ? AppColors.success.withOpacity(0.3)
+              : AppColors.danger.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: isConnected ? AppColors.success : AppColors.danger,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            isConnected ? 'Realtime' : 'Disconnected',
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: isConnected ? AppColors.success : AppColors.danger,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
