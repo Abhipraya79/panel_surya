@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -119,7 +118,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
 
     final stopwatch = Stopwatch()..start();
     final client = http.Client();
-    final uri = Uri.parse('${AppConfig.baseUrl}/health');
+    final uri = Uri.parse('${AppConfig.socketUrl}/health');
 
     try {
       final response = await client.get(uri).timeout(
@@ -334,7 +333,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Pastikan IP HP Anda memiliki subnet yang sama dengan laptop (misal sama-sama berada di 10.208.x.x atau 192.168.x.x).',
+                      'Pastikan HP Anda terhubung ke internet untuk dapat mengakses server production.',
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         color: AppColors.info,
@@ -412,7 +411,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          _buildInfoRow('Endpoint', '${AppConfig.baseUrl}/health'),
+          _buildInfoRow('Endpoint', '${AppConfig.socketUrl}/health'),
           const Divider(height: 16),
           _buildInfoRow(
             'HTTP Status Code',

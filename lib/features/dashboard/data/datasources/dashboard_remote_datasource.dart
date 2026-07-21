@@ -14,18 +14,19 @@ class DashboardRemoteDatasource {
 
   /// Fetches the latest dashboard data from GET /api/dashboard.
   Future<DashboardModel> fetchDashboard() async {
-    final uri = Uri.parse('${AppConfig.baseUrl}/api/dashboard');
+    final uri = Uri.parse('${AppConfig.baseUrl}/dashboard');
 
     try {
-      debugPrint('[FLUTTER] REST Fetching dashboard from $uri');
+      debugPrint('[API REQUEST] GET $uri');
       final response = await _client.get(uri).timeout(
             const Duration(seconds: 10),
           );
 
+      debugPrint('[API RESPONSE] GET $uri - Code ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final data = json['data'] as Map<String, dynamic>;
-        debugPrint('[FLUTTER] REST Loaded');
         return DashboardModel.fromJson(data);
       } else {
         throw Exception(
@@ -33,7 +34,7 @@ class DashboardRemoteDatasource {
         );
       }
     } catch (e) {
-      debugPrint('[FLUTTER] REST Error: $e');
+      debugPrint('[API ERROR] GET $uri - Exception $e');
       rethrow;
     }
   }

@@ -39,6 +39,7 @@ class DashboardProvider extends ChangeNotifier {
 
   StreamSubscription<Map<String, dynamic>>? _telemetrySub;
   StreamSubscription<bool>? _connectionSub;
+  StreamSubscription<String>? _modeSub;
 
   // ─── Initialization ───────────────────────────────────────────────────────
 
@@ -92,13 +93,18 @@ class DashboardProvider extends ChangeNotifier {
     _telemetrySub ??= _socket.telemetryStream.listen((payload) {
       _updateFromSocket(payload);
     });
+
+    // Listen to mode update events
+    _modeSub ??= _socket.modeStream.listen((mode) {
+      _updateModeFromSocket(mode);
+    });
   }
 
   void _updateFromSocket(Map<String, dynamic> payload) {
     debugPrint('[FLUTTER] Telemetry Updated — applying realtime data');
 
     if (_data != null) {
-      // Merge socket payload into existing model
+      // Merge socket payload into existing model, ignoring mode from telemetry payload
       _data = DashboardModel.fromJson({
         'deviceStatus': payload['deviceStatus'] ?? _data!.deviceStatus,
         'temperature': payload['temperature'] ?? _data!.temperature,
@@ -109,7 +115,7 @@ class DashboardProvider extends ChangeNotifier {
         'power': payload['power'] ?? _data!.power,
         'pumpStatus': payload['pumpStatus'] ?? _data!.pumpStatus,
         'wiperStatus': payload['wiperStatus'] ?? _data!.wiperStatus,
-        'mode': payload['mode'] ?? _data!.mode,
+        'mode': _data!.mode, // ALWAYS preserve existing mode
         'lastUpdate': payload['receivedAt'] ?? _data!.lastUpdate,
       });
     } else {
@@ -124,12 +130,34 @@ class DashboardProvider extends ChangeNotifier {
         'power': payload['power'] ?? 0,
         'pumpStatus': payload['pumpStatus'] ?? false,
         'wiperStatus': payload['wiperStatus'] ?? false,
-        'mode': payload['mode'] ?? 'AUTO',
+        'mode': payload['mode'] ?? 'MANUAL',
         'lastUpdate': payload['receivedAt'] ?? '',
       });
       _hasError = false;
     }
 
+    notifyListeners();
+  }
+
+  void _updateModeFromSocket(String mode) {
+    debugPrint('[FLUTTER] Mode Updated from Socket — applying realtime data: $mode');
+    if (_data != null) {
+      _data = _data!.copyWith(mode: mode);
+    } else {
+      _data = DashboardModel(
+        deviceStatus: 'ONLINE',
+        temperature: 0,
+        humidity: 0,
+        dust: 0,
+        voltage: 0,
+        current: 0,
+        power: 0,
+        pumpStatus: false,
+        wiperStatus: false,
+        mode: mode,
+        lastUpdate: '',
+      );
+    }
     notifyListeners();
   }
 
@@ -146,6 +174,7 @@ class DashboardProvider extends ChangeNotifier {
   void dispose() {
     _telemetrySub?.cancel();
     _connectionSub?.cancel();
+    _modeSub?.cancel();
     _socket.disconnect();
     super.dispose();
   }

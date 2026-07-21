@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io_client;
+import 'package:panel_surya/main.dart';
 import '../constants/app_config.dart';
 
 /// Singleton Socket.IO service — compatible with socket_io_client v3.x
@@ -45,11 +46,29 @@ class SocketService {
   final _telemetryController =
       StreamController<Map<String, dynamic>>.broadcast();
   final _connectionController = StreamController<bool>.broadcast();
+  final _modeController = StreamController<String>.broadcast();
+  final _coolingController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _deviceStatusController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _cleaningStatusController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get telemetryStream =>
       _telemetryController.stream;
 
   Stream<bool> get connectionStream => _connectionController.stream;
+
+  Stream<String> get modeStream => _modeController.stream;
+
+  Stream<Map<String, dynamic>> get coolingStream =>
+      _coolingController.stream;
+
+  Stream<Map<String, dynamic>> get deviceStatusStream =>
+      _deviceStatusController.stream;
+
+  Stream<Map<String, dynamic>> get cleaningStatusStream =>
+      _cleaningStatusController.stream;
 
   bool _isConnected = false;
   bool get isConnected => _isConnected;
@@ -74,17 +93,17 @@ class SocketService {
 
     _log('Connecting to $url ...');
 
-    _socket = io_client.io(
-      url,
-      io_client.OptionBuilder()
-          .setTransports(['websocket'])    // WAJIB: hindari polling
-          .disableAutoConnect()            // kita panggil connect() manual
-          .enableReconnection()
-          .setReconnectionAttempts(999)
-          .setReconnectionDelay(1000)
-          .setReconnectionDelayMax(5000)
-          .build(),
-    );
+    final opts = io_client.OptionBuilder()
+        .setTransports(['websocket'])    // WAJIB: hindari polling
+        .disableAutoConnect()            // kita panggil connect() manual
+        .enableReconnection()
+        .setReconnectionAttempts(999)
+        .setReconnectionDelay(1000)
+        .setReconnectionDelayMax(5000)
+        .build();
+    opts['timeout'] = 10000;             // connect timeout (10s)
+
+    _socket = io_client.io(url, opts);
 
     // ── Event Listeners ─────────────────────────────────────────────────────
 
@@ -98,13 +117,16 @@ class SocketService {
     _socket!.onDisconnect((data) {
       _isConnected = false;
       _connectionController.add(false);
-      _log('Socket Disconnected. Reason: ${data ?? "Unknown"}');
+      _log('Socket Disconnected');
+      _log('Disconnect Reason: ${data ?? "Unknown"}');
+      _showNetworkSnackbar('Terputus dari server. Menghubungkan kembali...');
     });
 
     _socket!.onConnectError((err) {
       _isConnected = false;
       _connectionController.add(false);
       _log('Socket Connect Error: ${err ?? "Unknown connection issue"}');
+      _showNetworkSnackbar('Gagal menghubungi server Node.js. Silakan periksa koneksi Anda.');
     });
 
     _socket!.on('connect_timeout', (_) {
@@ -136,7 +158,7 @@ class SocketService {
     // ── Telemetry Event ─────────────────────────────────────────────────────
 
     _socket!.on('telemetry:new', (data) {
-      _log('Telemetry data packet received via Socket.IO');
+      _log('Telemetry Updated');
       try {
         Map<String, dynamic> payload;
         if (data is Map<String, dynamic>) {
@@ -150,6 +172,78 @@ class SocketService {
         _telemetryController.add(payload);
       } catch (e) {
         _log('Telemetry parse error: $e');
+      }
+    });
+
+    _socket!.on('mode:update', (data) {
+      _log('Mode update received via Socket.IO');
+      try {
+        String mode;
+        if (data is Map) {
+          mode = data['mode'] as String;
+        } else if (data is String) {
+          mode = data;
+        } else {
+          _log('Mode: unexpected data type: ${data.runtimeType}');
+          return;
+        }
+        _modeController.add(mode);
+      } catch (e) {
+        _log('Mode parse error: $e');
+      }
+    });
+
+    _socket!.on('cooling:status', (data) {
+      _log('Cooling status received via Socket.IO');
+      try {
+        Map<String, dynamic> payload;
+        if (data is Map<String, dynamic>) {
+          payload = data;
+        } else if (data is Map) {
+          payload = Map<String, dynamic>.from(data);
+        } else {
+          _log('Cooling: unexpected data type: ${data.runtimeType}');
+          return;
+        }
+        _coolingController.add(payload);
+      } catch (e) {
+        _log('Cooling parse error: $e');
+      }
+    });
+
+    _socket!.on('device:status', (data) {
+      _log('Device Status received');
+      try {
+        Map<String, dynamic> payload;
+        if (data is Map<String, dynamic>) {
+          payload = data;
+        } else if (data is Map) {
+          payload = Map<String, dynamic>.from(data);
+        } else {
+          _log('Device status format error');
+          return;
+        }
+        _deviceStatusController.add(payload);
+      } catch (e) {
+        _log('Device status error: $e');
+      }
+    });
+
+    _socket!.on('cleaning:status', (data) {
+      _log('Cleaning status received');
+      try {
+        Map<String, dynamic> payload;
+        if (data is Map<String, dynamic>) {
+          payload = data;
+        } else if (data is Map) {
+          payload = Map<String, dynamic>.from(data);
+        } else {
+          _log('Cleaning format error');
+          return;
+        }
+        _cleaningStatusController.add(payload);
+      } catch (e) {
+        _log('Cleaning parse error: $e');
       }
     });
 
@@ -174,5 +268,25 @@ class SocketService {
     disconnect();
     if (!_telemetryController.isClosed) _telemetryController.close();
     if (!_connectionController.isClosed) _connectionController.close();
+    if (!_modeController.isClosed) _modeController.close();
+    if (!_coolingController.isClosed) _coolingController.close();
+    if (!_deviceStatusController.isClosed) _deviceStatusController.close();
+    if (!_cleaningStatusController.isClosed) _cleaningStatusController.close();
+  }
+
+  void _showNetworkSnackbar(String message) {
+    try {
+      PanelCareApp.scaffoldMessengerKey.currentState?.clearSnackBars();
+      PanelCareApp.scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: const Color(0xFFD32F2F), // Red danger
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error showing network snackbar: $e');
+    }
   }
 }

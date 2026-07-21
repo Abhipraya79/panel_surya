@@ -18,15 +18,17 @@ class HistoryRemoteDatasource {
     int page = 1,
   }) async {
     final uri = Uri.parse(
-      '${AppConfig.baseUrl}/api/telemetry/history?limit=$limit&page=$page',
+      '${AppConfig.baseUrl}/telemetry/history?limit=$limit&page=$page',
     );
 
     try {
-      debugPrint('[HISTORY] Request limit=$limit page=$page → $uri');
+      debugPrint('[API REQUEST] GET $uri');
 
       final response = await _client.get(uri).timeout(
             const Duration(seconds: 10),
           );
+
+      debugPrint('[API RESPONSE] GET $uri - Code ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -38,7 +40,6 @@ class HistoryRemoteDatasource {
                 ))
             .toList();
 
-        debugPrint('[HISTORY] Loaded ${records.length} records');
         return records;
       } else {
         throw Exception(
@@ -46,7 +47,7 @@ class HistoryRemoteDatasource {
         );
       }
     } catch (e) {
-      debugPrint('[HISTORY] Error: $e');
+      debugPrint('[API ERROR] GET $uri - Exception $e');
       rethrow;
     }
   }

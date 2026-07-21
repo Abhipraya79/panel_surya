@@ -7,8 +7,9 @@ class AppState {
   bool isBiometricAuthenticating = false;
 
   // Cooling Screen States
-  bool peltierOn = true;
-  bool fanOn = true;
+  bool isCooling = false;
+  bool peltierOn = false;
+  bool fanOn = false;
 
   // Cleaning/Controller Screen States
   bool isManualMode = true;

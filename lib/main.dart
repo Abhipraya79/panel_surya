@@ -12,6 +12,7 @@ import 'features/auth/presentation/screens/splash_screen.dart';
 import 'core/services/fcm_service.dart';
 import 'features/dashboard/presentation/providers/dashboard_provider.dart';
 import 'features/monitoring/presentation/providers/history_provider.dart';
+import 'core/constants/app_config.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -27,11 +28,20 @@ Future<void> main() async {
     debugPrint("❌ Firebase Initialization Error: $e");
   }
 
+  debugPrint('Backend URL:');
+  debugPrint(AppConfig.baseUrl);
+  debugPrint('');
+  debugPrint('Socket URL:');
+  debugPrint(AppConfig.socketUrl);
+
   runApp(const PanelCareApp());
 }
 
 class PanelCareApp extends StatefulWidget {
   const PanelCareApp({super.key});
+
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   @override
   State<PanelCareApp> createState() => _PanelCareAppState();
@@ -119,6 +129,7 @@ class _PanelCareAppState extends State<PanelCareApp> {
       ],
       child: MaterialApp(
         title: 'Panel Care',
+        scaffoldMessengerKey: PanelCareApp.scaffoldMessengerKey,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const SplashScreen(),

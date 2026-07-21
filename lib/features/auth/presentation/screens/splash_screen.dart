@@ -97,12 +97,15 @@ class _SplashScreenState extends State<SplashScreen>
     _loadingController.forward(from: 0.0);
 
     final client = http.Client();
-    final uri = Uri.parse('${AppConfig.baseUrl}/health');
+    final uri = Uri.parse('${AppConfig.socketUrl}/health');
 
     try {
+      debugPrint('[API REQUEST] GET $uri');
       final response = await client.get(uri).timeout(
             const Duration(seconds: 5),
           );
+
+      debugPrint('[API RESPONSE] GET $uri - Code ${response.statusCode}');
 
       if (response.statusCode == 200) {
         if (!mounted) return;
@@ -121,6 +124,7 @@ class _SplashScreenState extends State<SplashScreen>
         throw Exception('HTTP Status ${response.statusCode}');
       }
     } catch (e) {
+      debugPrint('[API ERROR] GET $uri - Exception $e');
       if (!mounted) return;
       _loadingController.stop(); // Stop progress indicator
       setState(() {
