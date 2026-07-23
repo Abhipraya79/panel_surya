@@ -180,9 +180,9 @@ class _SplashScreenState extends State<SplashScreen>
             end: Alignment.bottomCenter,
             colors: [
               Colors.white,
-              Color(0xFFFFF0F5), // Soft Light Pink
+              Color(0xFFFFF0F5),
               Color(0xFFFFF8FB), // App Background Pink
-            ],
+           ],
             stops: [0.0, 0.6, 1.0],
           ),
         ),
@@ -195,7 +195,6 @@ class _SplashScreenState extends State<SplashScreen>
                 children: [
                   const Spacer(flex: 2),
 
-                  // ─── Center Hero Image Container ─────────────────────────
                   ScaleTransition(
                     scale: _scaleAnimation,
                     child: Center(

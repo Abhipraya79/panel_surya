@@ -53,6 +53,8 @@ class SocketService {
       StreamController<Map<String, dynamic>>.broadcast();
   final _cleaningStatusController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final _eventController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get telemetryStream =>
       _telemetryController.stream;
@@ -69,6 +71,9 @@ class SocketService {
 
   Stream<Map<String, dynamic>> get cleaningStatusStream =>
       _cleaningStatusController.stream;
+
+  Stream<Map<String, dynamic>> get eventStream =>
+      _eventController.stream;
 
   bool _isConnected = false;
   bool get isConnected => _isConnected;
@@ -157,7 +162,7 @@ class SocketService {
 
     // ── Telemetry Event ─────────────────────────────────────────────────────
 
-    _socket!.on('telemetry:new', (data) {
+    _socket!.on('telemetry:update', (data) {
       _log('Telemetry Updated');
       try {
         Map<String, dynamic> payload;
@@ -193,7 +198,7 @@ class SocketService {
       }
     });
 
-    _socket!.on('cooling:status', (data) {
+    _socket!.on('cooling:update', (data) {
       _log('Cooling status received via Socket.IO');
       try {
         Map<String, dynamic> payload;
@@ -211,7 +216,7 @@ class SocketService {
       }
     });
 
-    _socket!.on('device:status', (data) {
+    _socket!.on('status:update', (data) {
       _log('Device Status received');
       try {
         Map<String, dynamic> payload;
@@ -229,7 +234,7 @@ class SocketService {
       }
     });
 
-    _socket!.on('cleaning:status', (data) {
+    _socket!.on('cleaning:update', (data) {
       _log('Cleaning status received');
       try {
         Map<String, dynamic> payload;
@@ -244,6 +249,24 @@ class SocketService {
         _cleaningStatusController.add(payload);
       } catch (e) {
         _log('Cleaning parse error: $e');
+      }
+    });
+
+    _socket!.on('event:new', (data) {
+      _log('New event received');
+      try {
+        Map<String, dynamic> payload;
+        if (data is Map<String, dynamic>) {
+          payload = data;
+        } else if (data is Map) {
+          payload = Map<String, dynamic>.from(data);
+        } else {
+          _log('Event format error');
+          return;
+        }
+        _eventController.add(payload);
+      } catch (e) {
+        _log('Event parse error: $e');
       }
     });
 
@@ -272,6 +295,7 @@ class SocketService {
     if (!_coolingController.isClosed) _coolingController.close();
     if (!_deviceStatusController.isClosed) _deviceStatusController.close();
     if (!_cleaningStatusController.isClosed) _cleaningStatusController.close();
+    if (!_eventController.isClosed) _eventController.close();
   }
 
   void _showNetworkSnackbar(String message) {

@@ -12,9 +12,11 @@ import '../../../../core/constants/app_shadows.dart';
 import '../../../../core/constants/app_config.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_status_chip.dart';
+import '../../../../core/utils/sensor_formatter.dart';
 import '../../../../core/state/app_state.dart';
 import '../../../../core/socket/socket_service.dart';
 import '../../../dashboard/presentation/providers/dashboard_provider.dart';
+import '../../../dashboard/data/models/dashboard_model.dart';
 
 class CoolingScreen extends StatefulWidget {
   const CoolingScreen({super.key});
@@ -223,7 +225,7 @@ class _CoolingScreenState extends State<CoolingScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
                       AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
-                  sliver: SliverToBoxAdapter(child: _buildTempSection()),
+                  sliver: SliverToBoxAdapter(child: _buildTempSection(data)),
                 ),
 
                 // ─── Device Status Card ─────────────────────────────────
@@ -258,13 +260,16 @@ class _CoolingScreenState extends State<CoolingScreen> {
   }
 
   // ─── Temperature Section ─────────────────────────────────────────────────
-  Widget _buildTempSection() {
+  Widget _buildTempSection(DashboardModel? data) {
+    final panelTempStr = SensorFormatter.format(data?.temperature);
+    final waterTempStr = SensorFormatter.format(data?.airTemp);
+
     return Row(
       children: [
         Expanded(
           child: _TempDisplayCard(
             label: 'Suhu Panel',
-            value: '41.8',
+            value: panelTempStr,
             unit: '°C',
             icon: LucideIcons.thermometer,
             iconColor: AppColors.tempPanel,
@@ -276,11 +281,11 @@ class _CoolingScreenState extends State<CoolingScreen> {
         Expanded(
           child: _TempDisplayCard(
             label: 'Suhu Air',
-            value: '24.6',
+            value: waterTempStr,
             unit: '°C',
-            icon: LucideIcons.droplet,
+            icon: Icons.water_drop,
             iconColor: AppColors.tempWater,
-            status: 'Dingin',
+            status: 'Air',
             statusVariant: AppChipVariant.info,
           ),
         ),

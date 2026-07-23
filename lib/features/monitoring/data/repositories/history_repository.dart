@@ -12,9 +12,24 @@ class HistoryRepository {
   Future<List<TelemetryHistoryModel>?> getHistory({
     int limit = 20,
     int page = 1,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? interval,
+    String? search,
+    String? sortBy,
+    String? sortOrder,
   }) async {
     try {
-      return await _datasource.fetchHistory(limit: limit, page: page);
+      return await _datasource.fetchHistory(
+        limit: limit,
+        page: page,
+        startDate: startDate,
+        endDate: endDate,
+        interval: interval,
+        search: search,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
+      );
     } catch (e) {
       debugPrint('[HISTORY] HistoryRepository.getHistory error: $e');
       rethrow;

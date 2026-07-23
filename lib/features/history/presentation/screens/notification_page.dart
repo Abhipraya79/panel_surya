@@ -5,6 +5,8 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/constants/app_shadows.dart';
 import '../../../../core/constants/app_spacing.dart';
+import 'package:provider/provider.dart';
+import '../providers/event_provider.dart';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -14,62 +16,8 @@ class NotificationPage extends StatefulWidget {
 }
 
 class _NotificationPageState extends State<NotificationPage> {
-  // Mock data list matching the requirements
-  final List<Map<String, dynamic>> _notifications = [
-    {
-      'time': '09:41:12',
-      'title': 'Sistem Connected',
-      'subtitle': 'ESP32 berhasil terhubung',
-      'icon': LucideIcons.checkCircle2,
-      'iconColor': AppColors.success,
-      'bgColor': AppColors.successLight,
-    },
-    {
-      'time': '09:40:31',
-      'title': 'Peltier ON',
-      'subtitle': 'Pendinginan air aktif',
-      'icon': LucideIcons.snowflake,
-      'iconColor': AppColors.tempWater,
-      'bgColor': AppColors.tempWater.withOpacity(0.12),
-    },
-    {
-      'time': '18:00:01',
-      'title': 'Cleaning Started',
-      'subtitle': 'Pembersihan panel dimulai',
-      'icon': LucideIcons.brush,
-      'iconColor': AppColors.powerColor,
-      'bgColor': AppColors.powerColor.withOpacity(0.12),
-    },
-    {
-      'time': '18:02:25',
-      'title': 'Cleaning Finished',
-      'subtitle': 'Pembersihan panel selesai',
-      'icon': LucideIcons.checkCircle2,
-      'iconColor': AppColors.success,
-      'bgColor': AppColors.successLight,
-    },
-    {
-      'time': '14:23:10',
-      'title': 'Suhu Tinggi',
-      'subtitle': 'Suhu panel melebihi setpoint',
-      'icon': LucideIcons.alertTriangle,
-      'iconColor': AppColors.warning,
-      'bgColor': AppColors.warningLight,
-    },
-    {
-      'time': '07:00:10',
-      'title': 'Cleaning Scheduled',
-      'subtitle': 'Pembersihan terjadwal dimulai',
-      'icon': LucideIcons.calendar,
-      'iconColor': AppColors.info,
-      'bgColor': AppColors.infoLight,
-    },
-  ];
-
   void _clearNotifications() {
-    setState(() {
-      _notifications.clear();
-    });
+    context.read<EventProvider>().clearEvents();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Semua notifikasi telah dihapus')),
     );
@@ -97,22 +45,68 @@ class _NotificationPageState extends State<NotificationPage> {
           ),
         ),
         actions: [
-          if (_notifications.isNotEmpty)
-            IconButton(
-              icon: const Icon(LucideIcons.trash2, color: Colors.white),
-              onPressed: _clearNotifications,
-              tooltip: 'Hapus Semua',
-            ),
+          Consumer<EventProvider>(
+            builder: (context, provider, child) {
+              if (provider.events.isNotEmpty) {
+                return IconButton(
+                  icon: const Icon(LucideIcons.trash2, color: Colors.white),
+                  onPressed: _clearNotifications,
+                  tooltip: 'Hapus Semua',
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
         ],
       ),
-      body: _notifications.isEmpty
-          ? _buildEmptyState()
-          : ListView.separated(
+      body: Consumer<EventProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading && provider.events.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (provider.events.isEmpty) {
+            return _buildEmptyState();
+          }
+          return RefreshIndicator(
+            onRefresh: () => provider.loadEvents(),
+            child: ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: _notifications.length,
+              itemCount: provider.events.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                final item = _notifications[index];
+                final item = provider.events[index];
+                
+                // Helper to determine icon and color based on event type
+                IconData icon = LucideIcons.info;
+                Color color = AppColors.primary;
+                Color bgColor = AppColors.primaryContainer;
+                
+                final evtLower = item.event.toLowerCase();
+                if (evtLower.contains('error') || evtLower.contains('fail') || evtLower.contains('tinggi')) {
+                  icon = LucideIcons.alertTriangle;
+                  color = AppColors.warning;
+                  bgColor = AppColors.warningLight;
+                } else if (evtLower.contains('completed') || evtLower.contains('connected') || evtLower.contains('selesai')) {
+                  icon = LucideIcons.checkCircle2;
+                  color = AppColors.success;
+                  bgColor = AppColors.successLight;
+                } else if (evtLower.contains('started') || evtLower.contains('cleaning') || evtLower.contains('mulai')) {
+                  icon = LucideIcons.brush;
+                  color = AppColors.powerColor;
+                  bgColor = AppColors.powerColor.withOpacity(0.12);
+                } else if (evtLower.contains('cooling') || evtLower.contains('peltier')) {
+                  icon = LucideIcons.snowflake;
+                  color = AppColors.tempWater;
+                  bgColor = AppColors.tempWater.withOpacity(0.12);
+                }
+
+                // parse time
+                String displayTime = item.receivedAt;
+                try {
+                  final dt = DateTime.parse(item.receivedAt).toLocal();
+                  displayTime = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
+                } catch (_) {}
+
                 return Container(
                   decoration: BoxDecoration(
                     color: AppColors.card,
@@ -132,7 +126,7 @@ class _NotificationPageState extends State<NotificationPage> {
                           // Left accent color bar
                           Container(
                             width: 5,
-                            color: item['iconColor'] as Color,
+                            color: color,
                           ),
                           const SizedBox(width: 12),
                           // Icon
@@ -142,12 +136,12 @@ class _NotificationPageState extends State<NotificationPage> {
                               width: 44,
                               height: 44,
                               decoration: BoxDecoration(
-                                color: item['bgColor'] as Color,
+                                color: bgColor,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                item['icon'] as IconData,
-                                color: item['iconColor'] as Color,
+                                icon,
+                                color: color,
                                 size: 20,
                               ),
                             ),
@@ -162,7 +156,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    item['time'] as String,
+                                    displayTime,
                                     style: GoogleFonts.poppins(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w500,
@@ -171,7 +165,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    item['title'] as String,
+                                    'Event Info',
                                     style: GoogleFonts.poppins(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
@@ -180,7 +174,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    item['subtitle'] as String,
+                                    item.event,
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
                                       color: AppColors.textSecondary,
@@ -198,6 +192,9 @@ class _NotificationPageState extends State<NotificationPage> {
                 );
               },
             ),
+          );
+        },
+      ),
     );
   }
 

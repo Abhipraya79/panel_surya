@@ -7,7 +7,7 @@
 ///   "data": {
 ///     "deviceStatus": "ONLINE",
 ///     "temperature": 35.3,
-///     "humidity": 84,
+///     "airTemp": 65,
 ///     "dust": 38,
 ///     "voltage": 18.2,
 ///     "current": 2.7,
@@ -21,12 +21,12 @@
 /// ```
 class DashboardModel {
   final String deviceStatus; // "ONLINE" | "OFFLINE"
-  final double temperature;
-  final double humidity;
-  final double dust;
-  final double voltage;
-  final double current;
-  final double power;
+  final num temperature;
+  final num airTemp;
+  final num dust;
+  final num voltage;
+  final num current;
+  final num power;
   final bool pumpStatus;
   final bool wiperStatus;
   final String mode;
@@ -35,7 +35,7 @@ class DashboardModel {
   const DashboardModel({
     required this.deviceStatus,
     required this.temperature,
-    required this.humidity,
+    required this.airTemp,
     required this.dust,
     required this.voltage,
     required this.current,
@@ -50,12 +50,12 @@ class DashboardModel {
   factory DashboardModel.fromJson(Map<String, dynamic> json) {
     return DashboardModel(
       deviceStatus: (json['deviceStatus'] as String?) ?? 'OFFLINE',
-      temperature: _toDouble(json['temperature']),
-      humidity: _toDouble(json['humidity']),
-      dust: _toDouble(json['dust']),
-      voltage: _toDouble(json['voltage']),
-      current: _toDouble(json['current']),
-      power: _toDouble(json['power']),
+      temperature: _toNum(json['temperature']),
+      airTemp: _toNum(json['airTemp']),
+      dust: _toNum(json['dust']),
+      voltage: _toNum(json['voltage']),
+      current: _toNum(json['current']),
+      power: _toNum(json['power']),
       pumpStatus: (json['pumpStatus'] as bool?) ?? false,
       wiperStatus: (json['wiperStatus'] as bool?) ?? false,
       mode: (json['mode'] as String?) ?? 'UNKNOWN',
@@ -63,24 +63,23 @@ class DashboardModel {
     );
   }
 
-  /// Helper — safely convert num/int/double from JSON to double.
-  static double _toDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0.0;
-    return 0.0;
+  /// Helper — safely convert num/int/double/String from JSON to num without forced double conversion.
+  static num _toNum(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value;
+    if (value is String) return num.tryParse(value) ?? 0;
+    return 0;
   }
 
   /// Partial update — used when a socket event arrives with updated data.
   DashboardModel copyWith({
     String? deviceStatus,
-    double? temperature,
-    double? humidity,
-    double? dust,
-    double? voltage,
-    double? current,
-    double? power,
+    num? temperature,
+    num? airTemp,
+    num? dust,
+    num? voltage,
+    num? current,
+    num? power,
     bool? pumpStatus,
     bool? wiperStatus,
     String? mode,
@@ -89,7 +88,7 @@ class DashboardModel {
     return DashboardModel(
       deviceStatus: deviceStatus ?? this.deviceStatus,
       temperature: temperature ?? this.temperature,
-      humidity: humidity ?? this.humidity,
+      airTemp: airTemp ?? this.airTemp,
       dust: dust ?? this.dust,
       voltage: voltage ?? this.voltage,
       current: current ?? this.current,

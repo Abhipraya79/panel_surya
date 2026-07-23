@@ -12,6 +12,7 @@ import 'features/auth/presentation/screens/splash_screen.dart';
 import 'core/services/fcm_service.dart';
 import 'features/dashboard/presentation/providers/dashboard_provider.dart';
 import 'features/monitoring/presentation/providers/history_provider.dart';
+import 'features/history/presentation/providers/event_provider.dart';
 import 'core/constants/app_config.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -125,6 +126,9 @@ class _PanelCareAppState extends State<PanelCareApp> {
         ),
         ChangeNotifierProvider<HistoryProvider>(
           create: (_) => HistoryProvider()..loadHistory(),
+        ),
+        ChangeNotifierProvider<EventProvider>(
+          create: (_) => EventProvider(),
         ),
       ],
       child: MaterialApp(

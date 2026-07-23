@@ -8,7 +8,7 @@ import '../../../../core/services/network_error_handler.dart';
 /// State management for the Dashboard feature.
 ///
 /// Flow:
-///   initialize() → REST API load → connect socket → listen telemetry:new → update UI
+///   initialize() → REST API load → connect socket → listen telemetry:update & status:update → update UI
 ///
 /// Never call REST API or Socket directly from widgets — use this provider.
 class DashboardProvider extends ChangeNotifier {
@@ -40,6 +40,7 @@ class DashboardProvider extends ChangeNotifier {
   StreamSubscription<Map<String, dynamic>>? _telemetrySub;
   StreamSubscription<bool>? _connectionSub;
   StreamSubscription<String>? _modeSub;
+  StreamSubscription<Map<String, dynamic>>? _deviceStatusSub;
 
   // ─── Initialization ───────────────────────────────────────────────────────
 
@@ -98,24 +99,29 @@ class DashboardProvider extends ChangeNotifier {
     _modeSub ??= _socket.modeStream.listen((mode) {
       _updateModeFromSocket(mode);
     });
+
+    // Listen to device status update events (from ESP status topic)
+    _deviceStatusSub ??= _socket.deviceStatusStream.listen((payload) {
+      _updateStatusFromSocket(payload);
+    });
   }
 
   void _updateFromSocket(Map<String, dynamic> payload) {
     debugPrint('[FLUTTER] Telemetry Updated — applying realtime data');
 
     if (_data != null) {
-      // Merge socket payload into existing model, ignoring mode from telemetry payload
+      // Merge socket payload into existing model
       _data = DashboardModel.fromJson({
         'deviceStatus': payload['deviceStatus'] ?? _data!.deviceStatus,
         'temperature': payload['temperature'] ?? _data!.temperature,
-        'humidity': payload['humidity'] ?? _data!.humidity,
+        'airTemp': payload['airTemp'] ?? _data!.airTemp,
         'dust': payload['dust'] ?? _data!.dust,
         'voltage': payload['voltage'] ?? _data!.voltage,
         'current': payload['current'] ?? _data!.current,
         'power': payload['power'] ?? _data!.power,
         'pumpStatus': payload['pumpStatus'] ?? _data!.pumpStatus,
         'wiperStatus': payload['wiperStatus'] ?? _data!.wiperStatus,
-        'mode': _data!.mode, // ALWAYS preserve existing mode
+        'mode': payload['mode'] ?? _data!.mode,
         'lastUpdate': payload['receivedAt'] ?? _data!.lastUpdate,
       });
     } else {
@@ -123,7 +129,7 @@ class DashboardProvider extends ChangeNotifier {
       _data = DashboardModel.fromJson({
         'deviceStatus': payload['deviceStatus'] ?? 'ONLINE',
         'temperature': payload['temperature'] ?? 0,
-        'humidity': payload['humidity'] ?? 0,
+        'airTemp': payload['airTemp'] ?? 0,
         'dust': payload['dust'] ?? 0,
         'voltage': payload['voltage'] ?? 0,
         'current': payload['current'] ?? 0,
@@ -139,6 +145,31 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _updateStatusFromSocket(Map<String, dynamic> payload) {
+    final status = payload['status'] as String?;
+    if (status != null) {
+      debugPrint('[FLUTTER] Device Status Updated from Socket — applying realtime data: $status');
+      if (_data != null) {
+        _data = _data!.copyWith(deviceStatus: status);
+      } else {
+        _data = DashboardModel(
+          deviceStatus: status,
+          temperature: 0,
+          airTemp: 0,
+          dust: 0,
+          voltage: 0,
+          current: 0,
+          power: 0,
+          pumpStatus: false,
+          wiperStatus: false,
+          mode: 'MANUAL',
+          lastUpdate: '',
+        );
+      }
+      notifyListeners();
+    }
+  }
+
   void _updateModeFromSocket(String mode) {
     debugPrint('[FLUTTER] Mode Updated from Socket — applying realtime data: $mode');
     if (_data != null) {
@@ -147,7 +178,7 @@ class DashboardProvider extends ChangeNotifier {
       _data = DashboardModel(
         deviceStatus: 'ONLINE',
         temperature: 0,
-        humidity: 0,
+        airTemp: 0,
         dust: 0,
         voltage: 0,
         current: 0,
@@ -175,6 +206,7 @@ class DashboardProvider extends ChangeNotifier {
     _telemetrySub?.cancel();
     _connectionSub?.cancel();
     _modeSub?.cancel();
+    _deviceStatusSub?.cancel();
     _socket.disconnect();
     super.dispose();
   }

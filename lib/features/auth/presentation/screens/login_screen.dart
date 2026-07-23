@@ -218,16 +218,13 @@ class _LoginScreenState extends State<LoginScreen>
                 width: double.infinity,
                 child: Stack(
                   children: [
-                    // Base white background for the image to blend perfectly
                     Container(color: Colors.white),
-                    // The Illustration Image
                     Positioned.fill(
                       child: Image.asset(
                         AppAssets.solarPanel,
                         fit: BoxFit.contain,
                       ),
                     ),
-                    // Bottom gradient overlay to transition from image's white background to light pink
                     Positioned(
                       left: 0,
                       right: 0,
@@ -266,7 +263,7 @@ class _LoginScreenState extends State<LoginScreen>
                         children: [
                           // Welcome texts
                           Text(
-                            'Welcome Back',
+                            'Panel Care',
                             style: GoogleFonts.poppins(
                               fontSize: 26,
                               fontWeight: FontWeight.w700,

@@ -15,7 +15,5 @@ class AppState {
   bool isManualMode = true;
   bool wiperOn = false;
   bool pumpOn = false;
-  bool schedule07 = true;
-  bool schedule18 = true;
   bool isCleaning = false;
 }

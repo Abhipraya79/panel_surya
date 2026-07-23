@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,6 +11,7 @@ import '../../../../core/constants/app_radius.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_status_chip.dart';
 import '../../../../core/constants/app_config.dart';
+import '../../../../core/socket/socket_service.dart';
 import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 
 class ControllerScreen extends StatefulWidget {
@@ -19,29 +21,97 @@ class ControllerScreen extends StatefulWidget {
   State<ControllerScreen> createState() => _ControllerScreenState();
 }
 
-// Enum for local cleaning state — completely independent from telemetry
-enum CleaningState { idle, running }
+enum CleaningState { idle, running, completed }
 
 class _ControllerScreenState extends State<ControllerScreen> {
   bool _isActionLoading = false;
   bool _isModeLoading = false;
 
-  // CleaningState is driven ONLY by explicit user button presses.
-  // It is NEVER changed by telemetry, mode changes, or socket events.
+  // CleaningState is driven by ESP feedback through Socket.IO cleaning:status event.
+  // idle → user can press START
+  // running → waiting for ESP to finish, button disabled
+  // completed → briefly shows completion, then resets to idle
   CleaningState _cleaningState = CleaningState.idle;
 
-  Future<void> _toggleCleaning(bool start) async {
+  StreamSubscription<Map<String, dynamic>>? _cleaningStatusSub;
+  StreamSubscription<Map<String, dynamic>>? _eventSub;
+  StreamSubscription<Map<String, dynamic>>? _telemetrySub;
+
+  @override
+  void initState() {
+    super.initState();
+    // 1. Listen to cleaning:update events from backend (triggered by ESP feedback)
+    _cleaningStatusSub = SocketService.instance.cleaningStatusStream.listen((payload) {
+      final status = payload['status'];
+      if ((status == 'idle' || status == 'completed') && mounted) {
+        setState(() {
+          _cleaningState = CleaningState.idle;
+          _isActionLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pembersihan selesai.'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      } else if (status == 'running' && mounted) {
+        setState(() {
+          _cleaningState = CleaningState.running;
+        });
+      }
+    });
+
+    // 2. Listen to event:new events from backend (triggered when ESP sends payload to solar/panel/event)
+    _eventSub = SocketService.instance.eventStream.listen((payload) {
+      final eventName = (payload['event'] as String?)?.toLowerCase() ?? '';
+      if ((eventName.contains('cleaning finished') ||
+           eventName.contains('cleaning completed') ||
+           eventName.contains('pembersihan selesai') ||
+           eventName.contains('motor stopped')) && mounted) {
+        setState(() {
+          _cleaningState = CleaningState.idle;
+          _isActionLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pembersihan selesai. Motor telah berhenti.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    });
+
+    // 3. Listen to telemetry:update to auto-reset button if wiper/pump is stopped on ESP
+    _telemetrySub = SocketService.instance.telemetryStream.listen((payload) {
+      final wiperStatus = payload['wiperStatus'] as bool?;
+      final pumpStatus = payload['pumpStatus'] as bool?;
+      if (wiperStatus == false && pumpStatus == false && _cleaningState == CleaningState.running && mounted) {
+        setState(() {
+          _cleaningState = CleaningState.idle;
+          _isActionLoading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _cleaningStatusSub?.cancel();
+    _eventSub?.cancel();
+    _telemetrySub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startCleaning() async {
     setState(() {
       _isActionLoading = true;
     });
 
-    final action = start ? 'START' : 'STOP';
-    final mode = 'MANUAL';
     final uri = Uri.parse('${AppConfig.baseUrl}/control/cleaning');
     final headers = {'Content-Type': 'application/json'};
     final requestBody = jsonEncode({
-      'action': action,
-      'mode': mode,
+      'action': 'START',
+      'mode': 'MANUAL',
     });
 
     try {
@@ -57,48 +127,19 @@ class _ControllerScreenState extends State<ControllerScreen> {
       debugPrint('[API RESPONSE] POST $uri - Code ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        if (start) {
-          // START success: set CleaningState to RUNNING
-          setState(() {
-            _cleaningState = CleaningState.running;
-            _isActionLoading = false;
-          });
+        // START success: set CleaningState to RUNNING
+        // Button will remain disabled until ESP sends feedback via Socket.IO
+        setState(() {
+          _cleaningState = CleaningState.running;
+          _isActionLoading = false;
+        });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pembersihan Manual Dimulai...'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-
-          // Simulate ESP32 cleaning duration: reset to IDLE after 5 seconds
-          Future.delayed(const Duration(seconds: 5), () {
-            if (mounted) {
-              setState(() {
-                _cleaningState = CleaningState.idle;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Pembersihan selesai.'),
-                  backgroundColor: AppColors.primary,
-                ),
-              );
-            }
-          });
-        } else {
-          // STOP success: reset CleaningState to IDLE immediately
-          setState(() {
-            _cleaningState = CleaningState.idle;
-            _isActionLoading = false;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pembersihan Dihentikan'),
-              backgroundColor: AppColors.primary,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pembersihan Manual Dimulai...'),
+            backgroundColor: AppColors.success,
+          ),
+        );
       } else {
         // Parse error message if available
         String serverMessage = 'Pembersihan gagal dijalankan.';
@@ -924,12 +965,10 @@ class _ControllerScreenState extends State<ControllerScreen> {
   }
 
   Widget _buildMainButton(bool isDeviceOnline, bool isAutoMode, bool isRunning) {
-    // Enabled only when device is online, not switching/action loading, and mode is MANUAL
-    final isEnabled = isDeviceOnline && !_isActionLoading && !isAutoMode;
+    // Enabled only when device is online, not loading, mode is MANUAL, and NOT currently cleaning
+    final isEnabled = isDeviceOnline && !_isActionLoading && !isAutoMode && !isRunning;
 
-    final btnColor = isRunning ? AppColors.danger : AppColors.success;
-    final labelText = isRunning ? 'STOP CLEANING' : 'START CLEANING';
-    final btnIcon = isRunning ? LucideIcons.square : LucideIcons.play;
+    final btnColor = isRunning ? AppColors.warning : AppColors.success;
 
     return Column(
       children: [
@@ -937,7 +976,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
           opacity: isEnabled ? 1.0 : (isAutoMode ? 0.5 : 0.6),
           duration: const Duration(milliseconds: 200),
           child: GestureDetector(
-            onTap: isEnabled ? () => _toggleCleaning(!isRunning) : null,
+            onTap: isEnabled ? () => _startCleaning() : null,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeInOut,
@@ -956,26 +995,43 @@ class _ControllerScreenState extends State<ControllerScreen> {
                     : [],
               ),
               child: Center(
-                child: _isActionLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2.5,
-                        ),
+                child: (_isActionLoading || isRunning)
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          ),
+                          if (isRunning) ...[
+                            const SizedBox(width: 10),
+                            Text(
+                              'CLEANING...',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ],
                       )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            isAutoMode ? LucideIcons.lock : btnIcon,
+                            isAutoMode ? LucideIcons.lock : LucideIcons.play,
                             color: Colors.white,
                             size: 18,
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            labelText,
+                            'START CLEANING',
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,

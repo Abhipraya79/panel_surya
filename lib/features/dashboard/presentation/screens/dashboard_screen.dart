@@ -9,6 +9,7 @@ import '../../../../core/constants/app_shadows.dart';
 import '../../../../core/widgets/app_metric_card.dart';
 import '../../../../core/widgets/app_status_chip.dart';
 import '../../../../core/widgets/app_section_title.dart';
+import '../../../../core/utils/sensor_formatter.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../history/presentation/screens/notification_page.dart';
 import '../providers/dashboard_provider.dart';
@@ -384,66 +385,66 @@ class DashboardScreen extends StatelessWidget {
     final metrics = [
       _MetricData(
         title: 'Suhu Panel',
-        value: data.temperature.toStringAsFixed(1),
+        value: SensorFormatter.format(data.temperature),
         unit: '°C',
         icon: LucideIcons.thermometer,
         iconColor: AppColors.tempPanel,
-        iconBg: AppColors.tempPanel.withOpacity(0.12),
+        iconBg: AppColors.tempPanel.withValues(alpha: 0.12),
         status: _tempStatus(data.temperature),
         statusVariant: _tempVariant(data.temperature),
         trend: 'up',
       ),
       _MetricData(
-        title: 'Kelembaban',
-        value: data.humidity.toStringAsFixed(0),
-        unit: '%',
-        icon: LucideIcons.droplet,
+        title: 'Suhu Air',
+        value: SensorFormatter.format(data.airTemp),
+        unit: '°C',
+        icon: Icons.water_drop,
         iconColor: AppColors.tempWater,
-        iconBg: AppColors.tempWater.withOpacity(0.12),
-        status: _humidityStatus(data.humidity),
-        statusVariant: _humidityVariant(data.humidity),
+        iconBg: AppColors.tempWater.withValues(alpha: 0.12),
+        status: _airTempStatus(data.airTemp),
+        statusVariant: _airTempVariant(data.airTemp),
         trend: 'flat',
       ),
       _MetricData(
         title: 'Debu',
-        value: data.dust.toStringAsFixed(0),
+        value: SensorFormatter.format(data.dust),
         unit: 'μg/m³',
         icon: LucideIcons.wind,
         iconColor: AppColors.dustColor,
-        iconBg: AppColors.dustColor.withOpacity(0.12),
+        iconBg: AppColors.dustColor.withValues(alpha: 0.12),
         status: _dustStatus(data.dust),
         statusVariant: _dustVariant(data.dust),
         trend: 'up',
       ),
       _MetricData(
         title: 'Tegangan',
-        value: data.voltage.toStringAsFixed(2),
+        value: SensorFormatter.format(data.voltage),
         unit: 'V',
         icon: LucideIcons.zap,
         iconColor: AppColors.voltageColor,
-        iconBg: AppColors.voltageColor.withOpacity(0.12),
+        iconBg: AppColors.voltageColor.withValues(alpha: 0.12),
         status: 'Normal',
         statusVariant: AppChipVariant.success,
         trend: 'flat',
       ),
       _MetricData(
         title: 'Arus',
-        value: data.current.toStringAsFixed(2),
+        value: SensorFormatter.format(data.current),
         unit: 'A',
         icon: LucideIcons.activity,
         iconColor: AppColors.currentColor,
-        iconBg: AppColors.currentColor.withOpacity(0.12),
+        iconBg: AppColors.currentColor.withValues(alpha: 0.12),
         status: 'Normal',
         statusVariant: AppChipVariant.success,
         trend: 'down',
       ),
       _MetricData(
         title: 'Daya',
-        value: data.power.toStringAsFixed(1),
+        value: SensorFormatter.format(data.power),
         unit: 'W',
         icon: LucideIcons.power,
         iconColor: AppColors.powerColor,
-        iconBg: AppColors.powerColor.withOpacity(0.12),
+        iconBg: AppColors.powerColor.withValues(alpha: 0.12),
         status: 'Optimal',
         statusVariant: AppChipVariant.success,
         trend: 'flat',
@@ -480,10 +481,20 @@ class DashboardScreen extends StatelessWidget {
   // ─── Actuator Status Row ──────────────────────────────────────────────────────
   Widget _buildActuatorRow(DashboardModel data) {
     final actuators = [
-      _ActuatorData('Peltier', LucideIcons.snowflake, true,
-          AppColors.tempWater, AppChipVariant.success),
-      _ActuatorData('Fan', LucideIcons.wind, true,
-          AppColors.info, AppChipVariant.success),
+      _ActuatorData(
+        'Peltier',
+        LucideIcons.snowflake,
+        data.pumpStatus,
+        data.pumpStatus ? AppColors.tempWater : AppColors.textSecondary,
+        data.pumpStatus ? AppChipVariant.success : AppChipVariant.neutral,
+      ),
+      _ActuatorData(
+        'Fan',
+        LucideIcons.wind,
+        data.pumpStatus,
+        data.pumpStatus ? AppColors.info : AppColors.textSecondary,
+        data.pumpStatus ? AppChipVariant.success : AppChipVariant.neutral,
+      ),
       _ActuatorData(
         'Pompa Pembersih',
         LucideIcons.droplets,
@@ -516,37 +527,37 @@ class DashboardScreen extends StatelessWidget {
 
   // ─── Status label helpers ─────────────────────────────────────────────────────
 
-  String _tempStatus(double t) {
+  String _tempStatus(num t) {
     if (t < 30) return 'Dingin';
     if (t < 45) return 'Optimal';
     return 'Panas';
   }
 
-  AppChipVariant _tempVariant(double t) {
+  AppChipVariant _tempVariant(num t) {
     if (t < 30) return AppChipVariant.info;
     if (t < 45) return AppChipVariant.success;
     return AppChipVariant.danger;
   }
 
-  String _humidityStatus(double h) {
-    if (h < 40) return 'Rendah';
-    if (h < 80) return 'Normal';
-    return 'Tinggi';
+  String _airTempStatus(num t) {
+    if (t < 25) return 'Sejuk';
+    if (t < 35) return 'Normal';
+    return 'Panas';
   }
 
-  AppChipVariant _humidityVariant(double h) {
-    if (h < 40) return AppChipVariant.warning;
-    if (h < 80) return AppChipVariant.success;
-    return AppChipVariant.info;
+  AppChipVariant _airTempVariant(num t) {
+    if (t < 25) return AppChipVariant.info;
+    if (t < 35) return AppChipVariant.success;
+    return AppChipVariant.warning;
   }
 
-  String _dustStatus(double d) {
+  String _dustStatus(num d) {
     if (d < 50) return 'Bersih';
     if (d < 100) return 'Sedang';
     return 'Kotor';
   }
 
-  AppChipVariant _dustVariant(double d) {
+  AppChipVariant _dustVariant(num d) {
     if (d < 50) return AppChipVariant.success;
     if (d < 100) return AppChipVariant.warning;
     return AppChipVariant.danger;

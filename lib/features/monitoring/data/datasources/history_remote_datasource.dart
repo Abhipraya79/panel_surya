@@ -16,10 +16,27 @@ class HistoryRemoteDatasource {
   Future<List<TelemetryHistoryModel>> fetchHistory({
     int limit = 20,
     int page = 1,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? interval,
+    String? search,
+    String? sortBy,
+    String? sortOrder,
   }) async {
-    final uri = Uri.parse(
-      '${AppConfig.baseUrl}/telemetry/history?limit=$limit&page=$page',
-    );
+    // Build query parameters
+    final Map<String, String> queryParams = {
+      'limit': limit.toString(),
+      'page': page.toString(),
+    };
+    
+    if (startDate != null) queryParams['startDate'] = startDate.toIso8601String();
+    if (endDate != null) queryParams['endDate'] = endDate.toIso8601String();
+    if (interval != null) queryParams['interval'] = interval;
+    if (search != null && search.isNotEmpty) queryParams['search'] = search;
+    if (sortBy != null) queryParams['sortBy'] = sortBy;
+    if (sortOrder != null) queryParams['sortOrder'] = sortOrder;
+
+    final uri = Uri.parse('${AppConfig.baseUrl}/telemetry/history').replace(queryParameters: queryParams);
 
     try {
       debugPrint('[API REQUEST] GET $uri');
